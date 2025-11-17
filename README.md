@@ -2,6 +2,7 @@
 
 Este projeto é uma implementação de uma API para solicitação de saques via PIX, desenvolvida com o framework Hyperf 3. A arquitetura foi projetada com foco em performance, escalabilidade e observabilidade.
 
+
 ## Tecnologias e Decisões de Arquitetura
 
 - **PHP 8.2 / Hyperf 3.1**: Framework de alta performance baseado em corrotinas, ideal para aplicações I/O-bound como microserviços.
