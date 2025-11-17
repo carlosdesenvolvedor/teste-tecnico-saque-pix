@@ -1,34 +1,37 @@
 {
-    "name": "hyperf/hyperf-skeleton",
+    "name": "carlosdesenvolvedor/saque-pix",
     "type": "project",
-    "keywords": [
-        "php",
-        "swoole",
-        "framework",
-        "hyperf",
-        "microservice",
-        "middleware"
-    ],
-    "description": "A coroutine framework that focuses on hyperspeed and flexible, specifically use for build microservices and middlewares.",
+    "description": "API de conta digital para saques via PIX, desenvolvida com Hyperf 3 para um teste técnico.",
+    "keywords": ["php", "hyperf", "pix", "api", "docker", "swoole"],
     "license": "Apache-2.0",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "require": {
-        "php": ">=8.1",
+        "php": ">=8.2",
+        "friendsofhyperf/mail": "^3.1",
+        "hyperf/async-queue": "~3.1.0",
         "hyperf/cache": "~3.1.0",
         "hyperf/command": "~3.1.0",
+        "hyperf/crontab": "~3.1.0",
         "hyperf/config": "~3.1.0",
+        "hyperf/database": "~3.1.0",
         "hyperf/db-connection": "~3.1.0",
         "hyperf/engine": "^2.10",
         "hyperf/framework": "~3.1.0",
         "hyperf/guzzle": "~3.1.0",
         "hyperf/http-server": "~3.1.0",
-        "hyperf/logger": "~3.1.0",
+        "hyperf/logger": "^3.1",
         "hyperf/memory": "~3.1.0",
-        "hyperf/process": "~3.1.0"
+        "hyperf/model-cache": "~3.1.0",
+        "hyperf/process": "~3.1.0",
+        "hyperf/redis": "~3.1.0",
+        "hyperf/validation": "~3.1.0",
+        "ramsey/uuid": "^4.7"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
-        "hyperf/devtool": "~3.1.0",
-        "hyperf/testing": "~3.1.0",
+        "hyperf/devtool": "^3.1",
+        "hyperf/testing": "^3.1",
         "mockery/mockery": "^1.0",
         "phpstan/phpstan": "^1.0",
         "swoole/ide-helper": "^5.0"
@@ -42,39 +45,41 @@
     },
     "autoload": {
         "psr-4": {
-            "App\\": "app/",
-            "Installer\\": "installer/"
+            "App\\": "app/"
         },
-        "files": [
-        ]
+        "files": []
     },
     "autoload-dev": {
         "psr-4": {
-            "HyperfTest\\": "./test/"
+            "HyperfTest\\": "test/"
         }
     },
-    "minimum-stability": "dev",
-    "prefer-stable": true,
     "config": {
         "optimize-autoloader": true,
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "hyperf/ide-helper": true
+        }
     },
-    "extra": {},
+    "extra": {
+        "hyperf": {
+            "config": "Hyperf\\Config\\ConfigFactory",
+            "scan": {
+                "paths": ["app"],
+                "ignore_annotations": ["mixin"]
+            }
+        }
+    },
     "scripts": {
-        "pre-install-cmd": "Installer\\Script::install",
-        "pre-update-cmd": "Installer\\Script::install",
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
-        ],
-        "post-autoload-dump": [
-            "rm -rf runtime/container"
         ],
         "test": "co-phpunit --prepend test/bootstrap.php --colors=always",
         "cs-fix": "php-cs-fixer fix $1",
         "analyse": "phpstan analyse --memory-limit 300M",
         "start": [
-          "Composer\\Config::disableProcessTimeout",
-          "php ./bin/hyperf.php start"
+            "Composer\\Config::disableProcessTimeout",
+            "php ./bin/hyperf.php start"
         ]
     }
 }

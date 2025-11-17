@@ -1,5 +1,5 @@
-**
-!app/
-!bin/
-!config/
-!composer.*
+vendor
+.env
+.idea
+.git
+*.md

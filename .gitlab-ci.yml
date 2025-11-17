@@ -1,5 +1,3 @@
-# usermod -aG docker gitlab-runner
-
 stages:
   - build
   - deploy
@@ -8,11 +6,12 @@ variables:
   PROJECT_NAME: hyperf
   REGISTRY_URL: registry-docker.org
 
+# Job para construir e testar a imagem (executado em branches como 'test')
 build_test_docker:
   stage: build
-  before_script:
-#    - git submodule sync --recursive
-#    - git submodule update --init --recursive
+  # Correção: Definido como array vazio para evitar o erro "Incorrect type"
+  before_script: [] 
+  
   script:
     - docker build . -t $PROJECT_NAME
     - docker tag $PROJECT_NAME $REGISTRY_URL/$PROJECT_NAME:test
@@ -22,6 +21,7 @@ build_test_docker:
   tags:
     - builder
 
+# Job para deployar a imagem de teste (executado em branches como 'test')
 deploy_test_docker:
   stage: deploy
   script:
@@ -31,11 +31,12 @@ deploy_test_docker:
   tags:
     - test
 
+# Job para construir a imagem final (executado em tags)
 build_docker:
   stage: build
-  before_script:
-#    - git submodule sync --recursive
-#    - git submodule update --init --recursive
+  # Correção: Definido como array vazio para evitar o erro "Incorrect type"
+  before_script: [] 
+  
   script:
     - docker build . -t $PROJECT_NAME
     - docker tag $PROJECT_NAME $REGISTRY_URL/$PROJECT_NAME:$CI_COMMIT_REF_NAME
@@ -47,10 +48,13 @@ build_docker:
   tags:
     - builder
 
+# Job para deployar a imagem final (executado em tags)
 deploy_docker:
   stage: deploy
   script:
-    - echo SUCCESS
+    - echo "Deploy para Produção/Staging iniciado."
+    # Comando de deploy real (exemplo)
+    # - docker stack deploy -c deploy.prod.yml --with-registry-auth $PROJECT_NAME
   only:
     - tags
   tags:

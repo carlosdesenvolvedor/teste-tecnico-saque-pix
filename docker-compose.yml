@@ -1,18 +1,98 @@
-version: '3'
 services:
-  hyperf-skeleton:
-    container_name: hyperf-skeleton
-    image: hyperf-skeleton
-    build:
-      context: .
-    volumes:
-      - ./:/opt/www
-    ports:
-      - 9501:9501
+  # MySQL Service
+  saque-pix-mysql:
+    image: mysql:8.0
+    container_name: saque-pix-mysql
     environment:
-      - APP_ENV=dev
-      - SCAN_CACHEABLE=false
+      MYSQL_ROOT_PASSWORD: secret # Senha root
+      MYSQL_DATABASE: pix_withdraw_db # DB a ser criado (conforme .env)
+      MYSQL_USER: user # Usuário (conforme .env)
+      MYSQL_PASSWORD: secret # Senha do usuário (conforme .env)
+    volumes:
+      # Use um volume nomeado para persistência
+      - mysql-data:/var/lib/mysql
+      # Opcional: Script de inicialização (para a tabela inicial)
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      # Mapeia a porta 3308 do host para a 3306 do container para evitar conflito
+      # com instâncias locais do MySQL rodando na porta 3306.
+      - "3308:3306"
+    restart: always
+    # HEALTHCHECK: Garante que o contêiner só é considerado "saudável" quando o DB estiver escutando.
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "root", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-networks:
-  default:
-    name: hyperf-skeleton
+  # Redis Service
+  saque-pix-redis:
+    image: redis:6.2-alpine
+    container_name: saque-pix-redis
+    ports:
+      - "6379:6379"
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  
+  # Fluentd (Logging)
+  saque-pix-fluentd:
+    image: fluent/fluentd:v1.16-1
+    container_name: saque-pix-fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    restart: always
+
+  # MailHog (Local Email Server)
+  saque-pix-mailhog:
+    image: mailhog/mailhog
+    container_name: saque-pix-mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    restart: always
+
+  # Aplicação Hyperf Service
+  saque-pix-app:
+    build: .
+    container_name: saque-pix-app
+    ports:
+      - "9502:9501"
+    volumes:
+      # Monta o código da aplicação, permitindo o live-reload, mas ignora a pasta vendor local.
+      - .:/app:cached
+      # Usa um volume nomeado para a pasta vendor dentro do container.
+      - vendor_data:/app/vendor/
+    restart: always
+    # CORREÇÃO: Força a variável de ambiente para a conexão interna entre contêineres.
+    # Isso garante que a aplicação use o nome do serviço 'saque-pix-redis' como host.
+    environment:
+      - REDIS_HOST=saque-pix-redis # Host para o Redis
+      - DB_HOST=saque-pix-mysql
+      - DB_DATABASE=pix_withdraw_db
+      - DB_USERNAME=user
+      - DB_PASSWORD=secret
+    # DEPENDÊNCIA CRÍTICA: Só inicia a aplicação quando o DB estiver SAUDÁVEL
+    depends_on:
+      saque-pix-mysql:
+        condition: service_healthy
+      saque-pix-redis:
+        condition: service_healthy
+      saque-pix-fluentd:
+        condition: service_started
+      saque-pix-mailhog:
+        condition: service_started
+    # ENTRYPOINT: Usa um script para gerenciar a inicialização de forma limpa.
+    entrypoint: ["/app/entrypoint.sh"]
+
+
+# Volumes para persistência do DB
+volumes:
+  mysql-data:
+  # Declara o volume nomeado para a pasta vendor
+  vendor_data:
+    

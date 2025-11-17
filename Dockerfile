@@ -1,54 +1,25 @@
-# Default Dockerfile
-#
-# @link     https://www.hyperf.io
-# @document https://hyperf.wiki
-# @contact  group@hyperf.io
-# @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
+FROM hyperf/hyperf:8.2-alpine-v3.18-swoole
 
-FROM hyperf/hyperf:8.3-alpine-v3.19-swoole
-LABEL maintainer="Hyperf Developers <group@hyperf.io>" version="1.0" license="MIT" app.name="Hyperf"
+# Mude para o diretório de trabalho
+WORKDIR /app
 
-##
-# ---------- env settings ----------
-##
-# --build-arg timezone=Asia/Shanghai
-ARG timezone
+# Otimização de cache do Docker:
+# 1. Copie apenas os arquivos do Composer primeiro.
+COPY composer.json composer.json
+COPY composer.lock composer.lock
 
-ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
-    APP_ENV=prod \
-    SCAN_CACHEABLE=(true)
+# 2. Instale as dependências. O Docker irá cachear este passo
+#    e só o executará novamente se composer.json ou composer.lock mudarem.
+RUN composer install --no-dev --no-scripts
 
-# update
-RUN set -ex \
-    # show php version and extensions
-    && php -v \
-    && php -m \
-    && php --ri swoole \
-    #  ---------- some config ----------
-    && cd /etc/php* \
-    # - config PHP
-    && { \
-        echo "upload_max_filesize=128M"; \
-        echo "post_max_size=128M"; \
-        echo "memory_limit=1G"; \
-        echo "date.timezone=${TIMEZONE}"; \
-    } | tee conf.d/99_overrides.ini \
-    # - config timezone
-    && ln -sf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime \
-    && echo "${TIMEZONE}" > /etc/timezone \
-    # ---------- clear works ----------
-    && rm -rf /var/cache/apk/* /tmp/* /usr/share/man \
-    && echo -e "\033[42;37m Build Completed :).\033[0m\n"
+# 3. Copie o restante do código da aplicação, respeitando o .dockerignore.
+#    Isso garante que a pasta 'vendor' local não seja copiada.
+COPY . . 
 
-WORKDIR /opt/www
+# 4. Otimize o autoloader.
+RUN composer dump-autoload -o
 
-# Composer Cache
-# COPY ./composer.* /opt/www/
-# RUN composer install --no-dev --no-scripts
-
-COPY . /opt/www
-RUN composer install --no-dev -o && php bin/hyperf.php
-
+# Exponha a porta que o Hyperf usa
 EXPOSE 9501
 
-ENTRYPOINT ["php", "/opt/www/bin/hyperf.php", "start"]
+# O entrypoint será definido no docker-compose.yml

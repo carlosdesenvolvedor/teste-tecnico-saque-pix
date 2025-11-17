@@ -1,14 +1,67 @@
-# Introduction
+# Plataforma de Saque PIX
 
-This is a skeleton application using the Hyperf framework. This application is meant to be used as a starting place for those looking to get their feet wet with Hyperf Framework.
+Este projeto é uma implementação de uma API para solicitação de saques via PIX, desenvolvida com o framework Hyperf 3. A arquitetura foi projetada com foco em performance, escalabilidade e observabilidade.
+
+## Tecnologias e Decisões de Arquitetura
+
+- **PHP 8.2 / Hyperf 3.1**: Framework de alta performance baseado em corrotinas, ideal para aplicações I/O-bound como microserviços.
+- **Docker & Docker Compose**: O ambiente é totalmente containerizado, garantindo consistência entre desenvolvimento e produção e facilitando o setup.
+- **MySQL 8**: Banco de dados relacional para persistência dos dados de contas e saques.
+- **Redis**: Utilizado como driver para o `AsyncQueue` do Hyperf. O processamento dos saques é feito de forma assíncrona em uma fila, o que melhora a performance da API (respostas rápidas) e a resiliência do sistema.
+- **MailHog**: Servidor de e-mail local para capturar e visualizar as notificações enviadas durante o desenvolvimento, sem a necessidade de um servidor SMTP real.
+- **Fluentd**: Coletor de logs. Todos os logs da aplicação (erros, informações, etc.) são enviados para o Fluentd, centralizando a observabilidade e permitindo que os logs sejam facilmente encaminhados para outras ferramentas (ex: Elasticsearch, Loki) em um ambiente de produção.
+
+## Como Executar
+
+### Requisitos
+- Docker
+- Docker Compose
+
+### Instalação
+
+1. **Clone o repositório:**
+   ```bash
+   git clone <url-do-repositorio>
+   cd <nome-do-projeto>
+   ```
+
+2. **Copie o arquivo de ambiente:**
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Suba os contêineres:**
+   O comando a seguir irá construir a imagem da aplicação, baixar as dependências do Composer e iniciar todos os serviços.
+   ```bash
+   docker-compose up -d --build
+   ```
+
+### Endpoints Úteis
+
+- **API**: `http://localhost:9502`
+- **MailHog (Web UI)**: `http://localhost:8025`
+- **Banco de Dados (via host)**: `localhost:3306`
+
+## Estrutura da API
+
+### Realizar Saque
+
+- **Endpoint**: `POST /api/accounts/{accountId}/balance/withdraw`
+- **Descrição**: Cria uma solicitação de saque, que pode ser imediata ou agendada.
+- **Body**:
+  ```json
+  {
+    "method": "PIX",
+    "pix": {
+      "type": "email",
+      "key": "destinatario@email.com"
+    },
+    "amount": 150.75,
+    "schedule": null
+  }
+  ```
 
 # Requirements
-
-Hyperf has some requirements for the system environment, it can only run under Linux and Mac environment, but due to the development of Docker virtualization technology, Docker for Windows can also be used as the running environment under Windows.
-
-The various versions of Dockerfile have been prepared for you in the [hyperf/hyperf-docker](https://github.com/hyperf/hyperf-docker) project, or directly based on the already built [hyperf/hyperf](https://hub.docker.com/r/hyperf/hyperf) Image to run.
-
-When you don't want to use Docker as the basis for your running environment, you need to make sure that your operating environment meets the following requirements:  
 
  - PHP >= 8.1
  - Any of the following network engines
