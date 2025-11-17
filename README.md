@@ -39,14 +39,26 @@ Este projeto é uma implementação de uma API para solicitação de saques via 
 ### Endpoints Úteis
 
 - **API**: `http://localhost:9502`
-- **MailHog (Web UI)**: `http://localhost:8025`
-- **Banco de Dados (via host)**: `localhost:3306`
+- **MailHog (Web UI)**: `http://localhost:8025` - Visualize os emails enviados aqui
+- **Banco de Dados (via host)**: `localhost:3308` (porta 3308 para evitar conflito com MySQL local)
 
 ## Estrutura da API
 
+### Consultar Saldo
+
+- **Endpoint**: `GET /account/{accountId}/balance`
+- **Descrição**: Retorna o saldo disponível de uma conta
+- **Resposta**:
+  ```json
+  {
+    "account_id": "123e4567-e89b-12d3-a456-426614174000",
+    "balance": "1000.00"
+  }
+  ```
+
 ### Realizar Saque
 
-- **Endpoint**: `POST /api/accounts/{accountId}/balance/withdraw`
+- **Endpoint**: `POST /account/{accountId}/balance/withdraw`
 - **Descrição**: Cria uma solicitação de saque, que pode ser imediata ou agendada.
 - **Body**:
   ```json
@@ -60,6 +72,68 @@ Este projeto é uma implementação de uma API para solicitação de saques via 
     "schedule": null
   }
   ```
+- **Resposta (Sucesso - 202 Accepted)**:
+  ```json
+  {
+    "status": "accepted",
+    "id_saque": "uuid-do-saque",
+    "mensagem": "Saque enviado para processamento."
+  }
+  ```
+- **Resposta (Agendado - 202 Accepted)**:
+  ```json
+  {
+    "status": "accepted",
+    "id_saque": "uuid-do-saque",
+    "mensagem": "Saque agendado com sucesso para 2026-01-01 15:00."
+  }
+  ```
+
+## Regras de Negócio Implementadas
+
+✅ **Validações de Saque**:
+- Não é permitido sacar valor maior que o saldo disponível
+- O saldo não pode ficar negativo
+- Saques agendados não podem ser no passado
+- Saques agendados não podem ser para mais de 7 dias no futuro
+- Apenas método PIX com chave tipo email é suportado (extensível para outros tipos)
+
+✅ **Processamento**:
+- Saques imediatos são processados via fila assíncrona (Redis)
+- Saques agendados são processados via cron job (executa a cada minuto)
+- Transações atômicas garantem consistência do saldo
+- Retry automático em caso de falhas (até 3 tentativas)
+
+✅ **Notificações**:
+- Email enviado automaticamente após saque concluído
+- Email contém: data/hora, valor sacado e dados do PIX
+- Emails podem ser visualizados no MailHog (http://localhost:8025)
+
+## Processamento de Saques Agendados
+
+O sistema utiliza um **cron job** que executa a cada minuto para verificar e processar saques agendados que já passaram da data/hora agendada. O cron job:
+
+1. Busca saques com `scheduled = true` e `status = 'pendente'`
+2. Filtra apenas os que `scheduled_for <= agora`
+3. Marca como `processando` e envia para a fila de processamento
+4. O Job assíncrono processa o saque (deduz saldo, comunica com PSP, envia email)
+
+## Decisões de Arquitetura
+
+### Por que usar fila assíncrona?
+- **Performance**: A API responde imediatamente (202 Accepted) sem esperar o processamento
+- **Resiliência**: Falhas temporárias são tratadas com retry automático
+- **Escalabilidade**: Múltiplos workers podem processar jobs em paralelo
+
+### Por que usar cron para saques agendados?
+- **Conformidade**: Atende ao requisito explícito de usar cron
+- **Confiabilidade**: Não depende de delays na fila que podem ser perdidos em reinicializações
+- **Rastreabilidade**: Saques agendados ficam no banco até serem processados pelo cron
+
+### Por que usar transações atômicas?
+- **Consistência**: Garante que saldo e status do saque são atualizados juntos
+- **Segurança**: Evita condições de corrida em operações concorrentes
+- **Integridade**: Rollback automático em caso de erro
 
 # Requirements
 

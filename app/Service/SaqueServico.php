@@ -23,7 +23,6 @@ class SaqueServico
         protected DriverFactory $driverFactory,
         protected ContainerInterface $container, // Mantido para obter o Job com parâmetros
         protected PspServico $pspService,
-        protected EmailServico $emailService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('withdraw');
@@ -77,20 +76,17 @@ class SaqueServico
 
             Db::commit();
 
-            $job = $this->container->get(ProcessoSaqueJob::class, ['withdrawId' => $idSaque]);
-
-            $delay = 0;
-            if ($agendado) {
-                $scheduledTime = new \DateTime($dataAgendamento);
-                $currentTime = new \DateTime();
-                $delay = max(0, $scheduledTime->getTimestamp() - $currentTime->getTimestamp());
+            // Para saques imediatos, envia para a fila de processamento
+            // Para saques agendados, o cron job irá processá-los quando chegar a hora
+            if (!$agendado) {
+                // Cria o job diretamente com apenas o ID do saque (sem container para evitar problemas de serialização)
+                $job = new ProcessoSaqueJob($idSaque);
+                $this->driverFactory->get('default')->push($job, 0);
+                $mensagem = "Saque enviado para processamento.";
+            } else {
+                // Saque agendado será processado pelo cron job
+                $mensagem = "Saque agendado com sucesso para {$dataAgendamento}.";
             }
-
-            $this->driverFactory->get('default')->push($job, $delay);
-
-            $mensagem = $agendado
-                ? "Saque agendado com sucesso para {$dataAgendamento}."
-                : "Saque enviado para processamento.";
 
             return ['status' => 'accepted', 'id_saque' => $idSaque, 'mensagem' => $mensagem];
 

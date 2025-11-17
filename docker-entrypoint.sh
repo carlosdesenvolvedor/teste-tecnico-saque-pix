@@ -1,16 +1,20 @@
 #!/bin/sh
 set -e
 
-# Verifica se o autoloader do Composer existe.
-# Se não existir, significa que as dependências não foram instaladas.
-if [ ! -f "vendor/autoload.php" ]; then
-    echo "Arquivo 'vendor/autoload.php' não encontrado. Instalando dependências do Composer..."
-    # Instala as dependências.
-    composer install --no-dev --no-interaction --optimize-autoloader
+# 1. Instala as dependências do Composer, garantindo que o vendor/ esteja sempre correto.
+if [ "${APP_ENV}" = "dev" ]; then
+    echo "Instalando dependências de desenvolvimento..."
+    composer install --no-interaction --optimize-autoloader
 else
-    echo "Arquivo 'vendor/autoload.php' encontrado. Pulando instalação do Composer."
+    echo "Instalando dependências de produção..."
+    composer install --no-dev --no-interaction --optimize-autoloader
 fi
 
-# Mantém o processo principal em execução.
-# O comando original (CMD do Dockerfile) será passado aqui.
-exec "$@"
+# 2. Em ambiente de desenvolvimento, limpa o cache do contêiner para refletir novas alterações.
+if [ "${APP_ENV}" = "dev" ]; then
+    echo "Ambiente de desenvolvimento detectado. Limpando cache do container..."
+    rm -rf /app/runtime/container/*
+fi
+
+# 3. Inicia a aplicação Hyperf. Este é o processo principal do contêiner.
+exec php /app/bin/hyperf.php start

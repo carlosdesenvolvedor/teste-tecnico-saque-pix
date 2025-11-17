@@ -8,10 +8,6 @@ WORKDIR /app
 COPY composer.json composer.json
 COPY composer.lock composer.lock
 
-# 2. Instale as dependências. O Docker irá cachear este passo
-#    e só o executará novamente se composer.json ou composer.lock mudarem.
-RUN composer install --no-dev --no-scripts
-
 # 3. Copie o restante do código da aplicação, respeitando o .dockerignore.
 #    Isso garante que a pasta 'vendor' local não seja copiada.
 COPY . . 

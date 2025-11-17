@@ -13,13 +13,11 @@ Router::get('/favicon.ico', function () {
     return '';
 });
 
-// Agrupa as rotas da API sob o prefixo /api
-Router::addGroup('/api', function () {
-    // Agrupa todas as rotas relacionadas a uma conta
-    Router::addGroup('/accounts/{accountId}', function () {
-        // Rota para consultar o saldo da conta
-        Router::get('/balance', [ContaController::class, 'balance']);
-        // Rota para solicitação de saque, alinhada à especificação do teste
-        Router::post('/balance/withdraw', [SaqueController::class, 'withdraw']);
-    });
+// Rotas da API conforme especificação do teste
+// Agrupa todas as rotas relacionadas a uma conta
+Router::addGroup('/account/{accountId}', function () {
+    // Rota para consultar o saldo da conta
+    Router::get('/balance', [ContaController::class, 'balance']);
+    // Rota para solicitação de saque, conforme especificação: POST /account/{accountId}/balance/withdraw
+    Router::post('/balance/withdraw', [SaqueController::class, 'withdraw']);
 });

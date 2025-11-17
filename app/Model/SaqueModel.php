@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Model;
 
 use Hyperf\DbConnection\Model\Model;
-use Hyperf\Database\Relations\HasOne;
-use Hyperf\Database\Relations\BelongsTo;
+use Hyperf\Database\Model\Relations\HasOne;
+use Hyperf\Database\Model\Relations\BelongsTo;
 
 /**
  * @property string $id ID único do saque (UUID).

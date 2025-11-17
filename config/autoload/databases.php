@@ -8,7 +8,7 @@ return [
     'default' => [
         // A partir da linha 7: Usando valores estáticos do .env (DB_HOST=hyperf-mysql, etc.)
         'driver' => $_ENV['DB_DRIVER'] ?? 'mysql',
-        'host' => $_ENV['DB_HOST'] ?? 'hyperf-mysql',
+        'host' => $_ENV['DB_HOST'] ?? 'saque-pix-mysql',
         'port' => (int) ($_ENV['DB_PORT'] ?? 3306),
         'database' => $_ENV['DB_DATABASE'] ?? 'pix_withdraw_db',
         'username' => $_ENV['DB_USERNAME'] ?? 'user',

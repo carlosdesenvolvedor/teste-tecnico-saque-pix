@@ -6,8 +6,8 @@ return [
     'mailers' => [
         'smtp' => [
             'transport' => 'smtp',
-            'host' => $_ENV['MAIL_HOST'] ?? 'smtp.mailtrap.io',
-            'port' => $_ENV['MAIL_PORT'] ?? 2525,
+            'host' => $_ENV['MAIL_HOST'] ?? 'saque-pix-mailhog', // MailHog no Docker
+            'port' => (int)($_ENV['MAIL_PORT'] ?? 1025), // Porta SMTP do MailHog
             'encryption' => $_ENV['MAIL_ENCRYPTION'] ?? null,
             'username' => $_ENV['MAIL_USERNAME'] ?? '',
             'password' => $_ENV['MAIL_PASSWORD'] ?? '',

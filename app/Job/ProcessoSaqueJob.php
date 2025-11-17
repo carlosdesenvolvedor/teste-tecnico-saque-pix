@@ -10,6 +10,7 @@ use App\Service\EmailServico;
 use App\Service\PspServico;
 use Carbon\Carbon;
 use Hyperf\AsyncQueue\Job;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Container\ContainerInterface;
@@ -26,24 +27,30 @@ class ProcessoSaqueJob extends Job
     // O Job será re-tentado até 3 vezes em caso de exceções.
     public int $maxAttempts = 3;
 
-    protected EmailServico $emailServico;
-    protected PspServico $pspServico;
-    protected LoggerInterface $logger;
-
     /**
      * @param string $withdrawId O ID do saque a ser processado.
      */
-    public function __construct(protected string $withdrawId, ContainerInterface $container)
+    public function __construct(protected string $withdrawId)
     {
-        // Injeta as dependências necessárias a partir do container.
-        $this->emailServico = $container->get(EmailServico::class);
-        $this->pspServico = $container->get(PspServico::class);
-        $this->logger = $container->get(LoggerFactory::class)->get('async-withdraw-processor');
     }
 
     public function handle(): void
     {
-        $this->logger->info("Job: Iniciando processamento do Saque ID #{$this->withdrawId}");
+        // Obtém o container e as dependências no método handle() para evitar problemas de serialização
+        $container = ApplicationContext::getContainer();
+        $loggerFactory = $container->get(LoggerFactory::class);
+        $logger = $loggerFactory->get('async-withdraw-processor');
+        
+        $logger->info("Job: Iniciando processamento do Saque ID #{$this->withdrawId}");
+
+        // Obtém as dependências necessárias
+        $pspServico = $container->get(PspServico::class);
+        $emailServico = null;
+        try {
+            $emailServico = $container->get(EmailServico::class);
+        } catch (\Throwable $e) {
+            $logger->warning("EmailServico não disponível: " . $e->getMessage());
+        }
 
         try {
             /** @var SaqueModel|null $withdraw */
@@ -54,8 +61,14 @@ class ProcessoSaqueJob extends Job
             // 1. Validação: Garante que o saque existe e está pendente.
             if (!$withdraw || !in_array($withdraw->status, [SaqueModel::STATUS_PENDENTE, SaqueModel::STATUS_PROCESSANDO])) {
                 $status = $withdraw?->status ?? 'N/A';
-                $this->logger->warning("Job: Saque ID #{$this->withdrawId} não encontrado ou status incorreto ({$status}). Abortando.");
+                $logger->warning("Job: Saque ID #{$this->withdrawId} não encontrado ou status incorreto ({$status}). Abortando.");
                 return;
+            }
+
+            // Marca como processando para evitar processamento duplicado
+            if ($withdraw->status === SaqueModel::STATUS_PENDENTE) {
+                $withdraw->status = SaqueModel::STATUS_PROCESSANDO;
+                $withdraw->save();
             }
 
             // Inicia a transação para garantir a atomicidade da operação de saldo.
@@ -67,7 +80,7 @@ class ProcessoSaqueJob extends Job
 
                 // 2. Verificação de Saldo
                 if (!$account || bccomp((string)$account->balance, (string)$withdraw->amount, 2) === -1) {
-                    $this->setWithdrawFailed($withdraw, 'Saldo insuficiente no momento do processamento.');
+                    $this->setWithdrawFailed($withdraw, 'Saldo insuficiente no momento do processamento.', $logger);
                     $withdraw->save(); // Salva o status de falha
                     Db::commit(); // Comita a falha
                     return;
@@ -76,39 +89,39 @@ class ProcessoSaqueJob extends Job
                 // 3. Dedução de Saldo
                 $account->balance = bcsub((string)$account->balance, (string)$withdraw->amount, 2);
                 $account->save();
-                $this->logger->info("Job: Saldo R$ {$withdraw->amount} deduzido da conta #{$account->id}.");
+                $logger->info("Job: Saldo R$ {$withdraw->amount} deduzido da conta #{$account->id}.");
 
                 Db::commit();
             } catch (Throwable $e) {
                 Db::rollBack();
-                $this->logger->error("Job: Erro na transação de banco de dados para o Saque ID #{$this->withdrawId}. Erro: " . $e->getMessage());
+                $logger->error("Job: Erro na transação de banco de dados para o Saque ID #{$this->withdrawId}. Erro: " . $e->getMessage());
                 throw $e; // Lança para a fila tentar novamente.
             }
 
             // 4. Comunicação com o PSP (fora da transação de DB)
-            $resultadoPsp = $this->pspServico->processarPagamentoPix($withdraw);
+            $resultadoPsp = $pspServico->processarPagamentoPix($withdraw);
 
             // 5. Atualização de Status Pós-PSP e Notificação
             if ($resultadoPsp['sucesso']) {
                 // Sucesso no PSP: Marca o saque como concluído e envia notificação.
                 $withdraw->status = SaqueModel::STATUS_CONCLUIDO;
                 $withdraw->error_reason = null;
-                $this->logger->info("Job: Saque ID #{$this->withdrawId} concluído com sucesso via PSP.");
+                $logger->info("Job: Saque ID #{$this->withdrawId} concluído com sucesso via PSP.");
                 $withdraw->save();
-                $this->sendNotification($withdraw); // Envia notificação apenas em caso de sucesso
+                $this->sendNotification($withdraw, $emailServico, $logger); // Envia notificação apenas em caso de sucesso
             } else {
                 // Falha no PSP: Estorna o valor e atualiza o status.
-                Db::transaction(function () use ($withdraw, $resultadoPsp) {
+                Db::transaction(function () use ($withdraw, $resultadoPsp, $logger) {
                     $account = $withdraw->account()->lockForUpdate()->first();
-                    $this->setWithdrawFailed($withdraw, $resultadoPsp['mensagem_erro'] ?? 'Falha desconhecida no PSP.');
-                    $this->reverseBalance($account, $withdraw->amount);
+                    $this->setWithdrawFailed($withdraw, $resultadoPsp['mensagem_erro'] ?? 'Falha desconhecida no PSP.', $logger);
+                    $this->reverseBalance($account, $withdraw->amount, $logger);
                     $withdraw->save();
                     $account->save();
                 });
             }
 
         } catch (Throwable $e) {
-            $this->logger->error("Job: Erro fatal ao processar Saque ID #{$this->withdrawId}. Erro: " . $e->getMessage(), [
+            $logger->error("Job: Erro fatal ao processar Saque ID #{$this->withdrawId}. Erro: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
 
@@ -123,9 +136,15 @@ class ProcessoSaqueJob extends Job
     /**
      * Envia o email de notificação após o saque ser concluído.
      */
-    protected function sendNotification(SaqueModel $withdraw): void
+    protected function sendNotification(SaqueModel $withdraw, ?EmailServico $emailServico, LoggerInterface $logger): void
     {
         try {
+            // Se o EmailServico não estiver disponível, apenas loga e retorna
+            if (!$emailServico) {
+                $logger->info("Job: EmailServico não disponível. Notificação de email não enviada para o saque #{$this->withdrawId}.");
+                return;
+            }
+
             // O requisito especifica o envio para o e-mail da chave PIX.
             $destinatario = ($withdraw->pix && $withdraw->pix->type === 'email') ? $withdraw->pix->key : null;
             
@@ -137,7 +156,7 @@ class ProcessoSaqueJob extends Job
                 $tipoChave = $withdraw->pix->type ?? 'Desconhecido';
                 $chavePix = $withdraw->pix->key ?? 'N/A';
 
-                $this->emailServico->enviarNotificacao(
+                $emailServico->enviarNotificacao(
                     $destinatario,
                     'Saque PIX Concluído',
                     'emails.saque_concluido', // Template a ser criado
@@ -148,32 +167,32 @@ class ProcessoSaqueJob extends Job
                         'chavePix' => $chavePix,
                     ]
                 );
-                $this->logger->info("Job: E-mail de notificação para o saque #{$this->withdrawId} enviado para '{$destinatario}'.");
+                $logger->info("Job: E-mail de notificação para o saque #{$this->withdrawId} enviado para '{$destinatario}'.");
             } else {
-                $this->logger->info("Job: Envio de e-mail para o saque #{$this->withdrawId} não realizado (chave PIX não é do tipo e-mail).");
+                $logger->info("Job: Envio de e-mail para o saque #{$this->withdrawId} não realizado (chave PIX não é do tipo e-mail).");
             }
         } catch (Throwable $e) {
             // A falha no envio do e-mail não deve reverter a transação do saque. Apenas registramos o erro.
-            $this->logger->error("Job: Falha ao enviar e-mail para o saque #{$this->withdrawId}: " . $e->getMessage());
+            $logger->error("Job: Falha ao enviar e-mail para o saque #{$this->withdrawId}: " . $e->getMessage());
         }
     }
 
     /**
      * Define o status do saque como falho e registra o motivo do erro.
      */
-    protected function setWithdrawFailed(SaqueModel $withdraw, string $reason): void
+    protected function setWithdrawFailed(SaqueModel $withdraw, string $reason, LoggerInterface $logger): void
     {
         $withdraw->status = SaqueModel::STATUS_FALHOU;
         $withdraw->error_reason = $reason;
-        $this->logger->warning("Saque ID #{$this->withdrawId} marcado como falha: {$reason}");
+        $logger->warning("Saque ID #{$this->withdrawId} marcado como falha: {$reason}");
     }
 
     /**
      * Reverte o valor deduzido para a conta.
      */
-    protected function reverseBalance(ContaModel $account, string $amount): void
+    protected function reverseBalance(ContaModel $account, string $amount, LoggerInterface $logger): void
     {
-        $this->logger->info("Estornando valor R$ {$amount} para a conta #{$account->id} devido a falha no PSP.");
+        $logger->info("Estornando valor R$ {$amount} para a conta #{$account->id} devido a falha no PSP.");
         $account->balance = bcadd((string)$account->balance, $amount, 2);
     }
 }

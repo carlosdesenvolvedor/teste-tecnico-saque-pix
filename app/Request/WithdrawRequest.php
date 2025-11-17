@@ -24,19 +24,38 @@ class WithdrawRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:0.01'],
             'schedule' => [
                 'nullable',
-                'date_format:Y-m-d H:i:s',
-                'after_or_equal:now',
-                // Valida que a data não é mais de 7 dias no futuro
                 function ($attribute, $value, $fail) {
+                    // Se for null, não valida nada
+                    if ($value === null) {
+                        return;
+                    }
+                    
                     try {
-                        $scheduledTime = new \DateTime($value);
+                        // Aceita formato Y-m-d H:i (sem segundos) ou Y-m-d H:i:s (com segundos)
+                        $scheduledTime = \DateTime::createFromFormat('Y-m-d H:i:s', $value);
+                        if (!$scheduledTime) {
+                            $scheduledTime = \DateTime::createFromFormat('Y-m-d H:i', $value);
+                        }
+                        
+                        if (!$scheduledTime) {
+                            $fail('O campo schedule deve estar no formato Y-m-d H:i ou Y-m-d H:i:s.');
+                            return;
+                        }
+
+                        $currentTime = new \DateTime();
                         $sevenDaysFromNow = (new \DateTime())->add(new \DateInterval('P7D'));
 
+                        // Valida que não é no passado
+                        if ($scheduledTime < $currentTime) {
+                            $fail('Não é permitido agendar um saque para uma data no passado.');
+                            return;
+                        }
+
+                        // Valida que não é mais de 7 dias no futuro
                         if ($scheduledTime > $sevenDaysFromNow) {
                             $fail('Não é permitido agendar um saque para mais de 7 dias no futuro.');
                         }
                     } catch (\Exception $e) {
-                        // A regra 'date_format' já deve pegar isso, mas é uma segurança extra.
                         $fail('Formato de data de agendamento inválido.');
                     }
                 },

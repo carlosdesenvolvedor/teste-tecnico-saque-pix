@@ -5,8 +5,7 @@ declare(strict_types=1);
 return [
     'default' => [
         // CRÍTICO: Este 'host' deve corresponder ao nome do serviço Redis no seu docker-compose.yml
-        // Assumindo que o serviço Redis se chama 'hyperf-redis'
-        'host' => $_ENV['REDIS_HOST'] ?? 'hyperf-redis',
+        'host' => $_ENV['REDIS_HOST'] ?? 'saque-pix-redis',
         'port' => (int) ($_ENV['REDIS_PORT'] ?? 6379),
         'auth' => $_ENV['REDIS_AUTH'] ?? null,
         'db' => (int) ($_ENV['REDIS_DB'] ?? 0),

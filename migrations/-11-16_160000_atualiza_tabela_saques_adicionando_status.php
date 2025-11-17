@@ -14,18 +14,12 @@ class AtualizaTabelaSaquesAdicionandoStatus extends Migration
     public function up(): void
     {
         Schema::table('account_withdraw', function (Blueprint $table) {
-            // Adiciona a coluna de status se não existir
-            if (!Schema::hasColumn('account_withdraw', 'status')) {
-                $table->string('status')->default('pendente')->after('scheduled_for');
-            }
+            // CORREÇÃO: Adiciona a nova coluna de status usando o valor literal.
+            // O Model não deve ser usado dentro de migrations.
+            $table->string('status')->default('pendente')->after('scheduled_for');
             
-            // Remove as colunas antigas apenas se existirem
-            if (Schema::hasColumn('account_withdraw', 'done')) {
-                $table->dropColumn('done');
-            }
-            if (Schema::hasColumn('account_withdraw', 'error')) {
-                $table->dropColumn('error');
-            }
+            // Remove as colunas antigas
+            $table->dropColumn(['done', 'error']);
         });
     }
 

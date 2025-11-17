@@ -33,6 +33,12 @@ class ContaModel extends Model
     protected ?string $table = 'account';
 
     /**
+     * Desabilita timestamps (created_at e updated_at) pois a tabela não possui essas colunas.
+     * @var bool
+     */
+    public bool $timestamps = false;
+
+    /**
      * Campos que podem ser preenchidos em massa.
      * @var array
      */

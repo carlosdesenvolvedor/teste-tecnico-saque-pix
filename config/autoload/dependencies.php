@@ -9,11 +9,11 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
-use FriendsOfHyperf\Mail\Contract\MailerInterface;
-use FriendsOfHyperf\Mail\Mailer;
+
+use FriendsOfHyperf\Mail\Contract\Mailer;
+use FriendsOfHyperf\Mail\Factory\MailerFactory;
 
 return [
-    // Mapeamento explícito para que o contêiner de DI use a fábrica correta
-    // para construir a MailerInterface. Isso resolve o problema de forma definitiva.
-    MailerInterface::class => \FriendsOfHyperf\Mail\MailerFactory::class,
+    // Binding explícito do Mailer para garantir que a injeção de dependências funcione
+    Mailer::class => MailerFactory::class,
 ];

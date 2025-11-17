@@ -16,9 +16,9 @@ CREATE TABLE account_withdraw (
     method VARCHAR(50) NOT NULL,
     amount DECIMAL(15, 2) NOT NULL,
     scheduled BOOLEAN DEFAULT FALSE,
-    status VARCHAR(50) NOT NULL,
     scheduled_for DATETIME NULL,
     error_reason VARCHAR(255) NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pendente',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (account_id) REFERENCES account(id)

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Model;
 
 use Hyperf\DbConnection\Model\Model;
-use Hyperf\Database\Relations\BelongsTo;
+use Hyperf\Database\Model\Relations\BelongsTo;
 
 /**
  * @property string $account_withdraw_id ID do saque associado (chave primária e estrangeira).

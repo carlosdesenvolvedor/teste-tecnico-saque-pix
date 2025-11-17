@@ -72,6 +72,7 @@ services:
     # Isso garante que a aplicação use o nome do serviço 'saque-pix-redis' como host.
     environment:
       - REDIS_HOST=saque-pix-redis # Host para o Redis
+      - APP_ENV=dev # Define o ambiente como desenvolvimento
       - DB_HOST=saque-pix-mysql
       - DB_DATABASE=pix_withdraw_db
       - DB_USERNAME=user
@@ -87,7 +88,7 @@ services:
       saque-pix-mailhog:
         condition: service_started
     # ENTRYPOINT: Usa um script para gerenciar a inicialização de forma limpa.
-    entrypoint: ["/app/entrypoint.sh"]
+    entrypoint: ["/app/docker-entrypoint.sh"] # Este script agora faz tudo.
 
 
 # Volumes para persistência do DB
